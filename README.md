@@ -3,7 +3,7 @@
 
 # Issabel PBXAPI Extension
 
-[English](#english) | [Türkçe](#turkish)
+English | Türkçe
 
 Enhanced API extension for Issabel PBX systems, adding advanced features like call origination, monitoring, CDR access, and channel management.
 
