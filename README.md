@@ -196,3 +196,138 @@ $recording = $pbx->cdrPlayer($cdrFile);
 - Kurulum öncesi sisteminizi yedekleyin
 - API erişimlerini güvenlik duvarı ile koruyun
 - Sistemi düzenli olarak güncelleyin
+
+
+ #API Documentatio
+
+## Postman Collection Documentation
+
+### Authentication
+**Endpoint:** `POST {{server}}/pbxapi/authenticate`
+- Authenticates user and returns access token
+- Required Parameters:
+  - `username`: PBX Admin Username
+  - `password`: PBX Admin Password
+- Response includes `access_token` used for subsequent requests
+
+### Extension Management
+1. **Get All Extensions**
+   - Endpoint: `GET {{server}}/pbxapi/extensions`
+   - Authentication: Bearer Token
+   - Returns list of all extensions
+
+2. **Get Extension Details**
+   - Endpoint: `GET {{server}}/pbxapi/extensions/{extension_number}`
+   - Authentication: Bearer Token
+   - Returns detailed information about specific extension
+
+### Call Management
+1. **Active Channels**
+   - Endpoint: `GET {{server}}/pbxapi/v2apiservice`
+   - Query Parameters:
+     - `action`: "channels"
+   - Returns list of active calls/channels
+
+2. **Call Origination**
+   - Endpoint: `GET {{server}}/pbxapi/manager/originate`
+   - Parameters:
+     - `channel`: Caller extension (e.g., "SIP/90002")
+     - `extension`: Target number
+     - `context`: Call context (default: "from-internal")
+     - `timeout`: Answer timeout in ms
+     - `callerid`: Caller ID display name
+     - `priority`: Priority level (default: 1)
+
+3. **Call Monitoring (SpyCall)**
+   - Endpoint: `GET {{server}}/pbxapi/manager/originate`
+   - Parameters:
+     - `channel`: Listener extension
+     - `application`: "ChanSpy"
+     - `data`: Target extension + mode (e.g., "SIP/8003,q")
+     - `callerid`: Display name for listener
+
+### CDR (Call Detail Records)
+1. **Get CDR Records**
+   - Endpoint: `GET {{server}}/pbxapi/v2apiservice`
+   - Query Parameters:
+     - `action`: "cdr"
+     - `start_date`: Start date (YYYY-MM-DD)
+     - `end_date`: End date (YYYY-MM-DD)
+     - `extension`: Extension number or "all"
+
+2. **CDR Recording Player**
+   - Endpoint: `GET {{server}}/pbxapi/v2apiservice`
+   - Query Parameters:
+     - `action`: "player"
+     - `file`: Recording file path
+
+## Environment Variables
+- `server`: PBX server URL
+- `token`: Authentication token (auto-set after auth)
+
+---
+ 
+## Postman Koleksiyonu Dokümantasyonu
+
+### Kimlik Doğrulama
+**Endpoint:** `POST {{server}}/pbxapi/authenticate`
+- Kullanıcıyı doğrular ve erişim tokeni döndürür
+- Gerekli Parametreler:
+  - `username`: PBX Admin Kullanıcı Adı
+  - `password`: PBX Admin Şifresi
+- Yanıt, sonraki isteklerde kullanılacak `access_token` içerir
+
+### Dahili Hat Yönetimi
+1. **Tüm Dahili Hatları Listele**
+   - Endpoint: `GET {{server}}/pbxapi/extensions`
+   - Kimlik Doğrulama: Bearer Token
+   - Tüm dahili hatların listesini döndürür
+
+2. **Dahili Hat Detayları**
+   - Endpoint: `GET {{server}}/pbxapi/extensions/{dahili_no}`
+   - Kimlik Doğrulama: Bearer Token
+   - Belirli bir dahili hattın detaylı bilgilerini döndürür
+
+### Çağrı Yönetimi
+1. **Aktif Kanallar**
+   - Endpoint: `GET {{server}}/pbxapi/v2apiservice`
+   - Sorgu Parametreleri:
+     - `action`: "channels"
+   - Aktif çağrıları/kanalları listeler
+
+2. **Çağrı Başlatma**
+   - Endpoint: `GET {{server}}/pbxapi/manager/originate`
+   - Parametreler:
+     - `channel`: Arayan dahili (örn: "SIP/90002")
+     - `extension`: Hedef numara
+     - `context`: Çağrı bağlamı (varsayılan: "from-internal")
+     - `timeout`: Cevaplama zaman aşımı (ms)
+     - `callerid`: Arayan adı
+     - `priority`: Öncelik seviyesi (varsayılan: 1)
+
+3. **Çağrı İzleme (SpyCall)**
+   - Endpoint: `GET {{server}}/pbxapi/manager/originate`
+   - Parametreler:
+     - `channel`: Dinleyici dahili
+     - `application`: "ChanSpy"
+     - `data`: Hedef dahili + mod (örn: "SIP/8003,q")
+     - `callerid`: Dinleyici için görünen isim
+
+### CDR (Çağrı Detay Kayıtları)
+1. **CDR Kayıtları**
+   - Endpoint: `GET {{server}}/pbxapi/v2apiservice`
+   - Sorgu Parametreleri:
+     - `action`: "cdr"
+     - `start_date`: Başlangıç tarihi (YYYY-MM-DD)
+     - `end_date`: Bitiş tarihi (YYYY-MM-DD)
+     - `extension`: Dahili numara veya "all"
+
+2. **CDR Kayıt Oynatıcı**
+   - Endpoint: `GET {{server}}/pbxapi/v2apiservice`
+   - Sorgu Parametreleri:
+     - `action`: "player"
+     - `file`: Kayıt dosyası yolu
+
+## Ortam Değişkenleri
+- `server`: PBX sunucu URL'si
+- `token`: Kimlik doğrulama tokeni (auth sonrası otomatik ayarlanır)
