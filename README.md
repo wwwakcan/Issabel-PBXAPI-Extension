@@ -1,7 +1,4 @@
-# Issabel PbxApi Documentation V2
-
-
-# Issabel PBXAPI Extension
+# Issabel PBXAPI Extension Documentation V2
 
 English | Türkçe
 
