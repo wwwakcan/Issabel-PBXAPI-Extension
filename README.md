@@ -1,190 +1,198 @@
 # Issabel PbxApi Documentation V2
 
-## 🇹🇷 Türkçe
 
-### Genel Bakış
-IssabelPbxApi, Issabel PBX sistemleri için geliştirilmiş Laravel tabanlı bir API wrapper'dır. Standart PBX API'sinde bulunmayan çeşitli gelişmiş özellikleri içerir ve PBX sisteminizle kolay entegrasyon sağlar.
+# Issabel PBXAPI Extension
 
-### Kurulum
+[English](#english) | [Türkçe](#turkish)
+
+Enhanced API extension for Issabel PBX systems, adding advanced features like call origination, monitoring, CDR access, and channel management.
+
+## 🚀 Features
+
+- **Extended API Capabilities**
+  - Call origination between extensions
+  - Real-time call monitoring (spy call)
+  - Active channel monitoring
+  - Detailed CDR (Call Detail Records) access
+  - Call recording playback
+  - Extension details and management
+
+## 📋 Requirements
+
+- Issabel PBX System
+- PHP 7.4 or higher
+- Laravel 8.x or higher (for Laravel integration)
+- Asterisk with proper configurations
+
+## ⚙️ Installation
+
+### 1. Server-side Installation (v2apiservice.php)
+- Add `v2apiservice.php` to your Issabel PBX system in:
+```
+/var/www/html/pbxapi/controllers/v2apiservice.php
+```
+
+### 2. Laravel Integration (IssabelPbxApi.php)
+- Add `IssabelPbxApi.php` to your Laravel project in:
+```
+app/Models/IssabelPbxApi.php
+```
+
+## 🔧 Configuration
+
 ```php
 use App\Models\IssabelPbxApi;
 
+// Initialize the API
 $pbx = new IssabelPbxApi($server, $username, $password);
-// veya
+
+// or use the static connection method
 $pbx = IssabelPbxApi::connect($server, $username, $password);
 ```
 
-### Özellikler
+## 📱 Usage Examples
 
-#### 1. Dahili Hat İşlemleri
-- `extensions()`: Tüm dahili hatların listesini getirir
-- `extension($extension)`: Belirli bir dahili hattın detaylı bilgilerini getirir
+### Extension Management
+```php
+// Get all extensions
+$extensions = $pbx->extensions();
 
-#### 2. Çağrı İzleme ve Yönetimi
-- `channels()`: Aktif çağrı kanallarını listeler
-- `originate()`: İki numara arasında çağrı başlatır
-  ```php
-  $pbx->originate(
-      $channel = "SIP/XXXXXX", 
-      $extension = "SIP/XXXXXXX",
-      $callerID = "Başlık",
-      $context = "from-internal",
-      $timeout = "30000"
-  );
-  ```
-- `spyCall()`: Aktif bir çağrıyı dinleme özelliği
-  ```php
-  $pbx->spyCall(
-      $channel = "SIP/XXXXXX",
-      $extension = "SIP/XXXXXXX",
-      $listenMode = "q",
-      $callerID = "Dinleme"
-  );
-  ```
+// Get specific extension details
+$extension = $pbx->extension('1001');
+```
 
-#### 3. Çağrı Kayıtları (CDR)
-- `cdr()`: Çağrı kayıtlarını sorgulama
-  ```php
-  $pbx->cdr(
-      $startDate = "2024-01-01",
-      $endDate = "2024-01-20",
-      $filter = "all"
-  );
-  ```
-- `cdrPlayer()`: Çağrı kayıtlarını dinleme
-  ```php
-  $pbx->cdrPlayer($cdrFile);
-  ```
+### Call Management
+```php
+// Initiate a call
+$pbx->originate(
+    $channel = "SIP/1001",
+    $extension = "SIP/1002",
+    $callerID = "Internal Call",
+    $context = "from-internal",
+    $timeout = "30000"
+);
+
+// Monitor active channels
+$channels = $pbx->channels();
+
+// Spy on an active call
+$pbx->spyCall(
+    $channel = "SIP/1001",
+    $extension = "SIP/1002",
+    $listenMode = "q",
+    $callerID = "Monitor"
+);
+```
+
+### CDR Access
+```php
+// Get call records
+$cdr = $pbx->cdr(
+    $startDate = "2024-01-01",
+    $endDate = "2024-01-31",
+    $filter = "all"
+);
+
+// Access call recording
+$recording = $pbx->cdrPlayer($cdrFile);
+```
 
 ---
 
-## 🇬🇧 English
+Issabel PBX sistemleri için geliştirilmiş, çağrı başlatma, izleme, CDR erişimi ve kanal yönetimi gibi gelişmiş özellikler sunan API uzantısı.
 
-### Overview
-IssabelPbxApi is a Laravel-based API wrapper for Issabel PBX systems. It includes various advanced features not available in the standard PBX API and provides easy integration with your PBX system.
+## 🚀 Özellikler
 
-### Installation
+- **Gelişmiş API Özellikleri**
+  - Dahili hatlar arası çağrı başlatma
+  - Gerçek zamanlı çağrı izleme (spy call)
+  - Aktif kanal izleme
+  - Detaylı CDR (Çağrı Detay Kayıtları) erişimi
+  - Çağrı kayıtlarını dinleme
+  - Dahili hat detayları ve yönetimi
+
+## 📋 Gereksinimler
+
+- Issabel PBX Sistemi
+- PHP 7.4 veya üzeri
+- Laravel 8.x veya üzeri (Laravel entegrasyonu için)
+- Asterisk (uygun konfigürasyonlarla)
+
+## ⚙️ Kurulum
+
+### 1. Sunucu Tarafı Kurulum (v2apiservice.php)
+- `v2apiservice.php` dosyasını Issabel PBX sisteminizde şu konuma ekleyin:
+```
+/var/www/html/pbxapi/controllers/v2apiservice.php
+```
+
+### 2. Laravel Entegrasyonu (IssabelPbxApi.php)
+- `IssabelPbxApi.php` dosyasını Laravel projenizde şu konuma ekleyin:
+```
+app/Models/IssabelPbxApi.php
+```
+
+## 🔧 Yapılandırma
+
 ```php
 use App\Models\IssabelPbxApi;
 
+// API'yi başlatma
 $pbx = new IssabelPbxApi($server, $username, $password);
-// or
+
+// veya statik bağlantı metodunu kullanma
 $pbx = IssabelPbxApi::connect($server, $username, $password);
 ```
 
-### Features
+## 📱 Kullanım Örnekleri
 
-#### 1. Extension Management
-- `extensions()`: Retrieves a list of all extensions
-- `extension($extension)`: Gets detailed information about a specific extension
+### Dahili Hat Yönetimi
+```php
+// Tüm dahili hatları getir
+$extensions = $pbx->extensions();
 
-#### 2. Call Monitoring and Management
-- `channels()`: Lists active call channels
-- `originate()`: Initiates a call between two numbers
-  ```php
-  $pbx->originate(
-      $channel = "SIP/XXXXXX", 
-      $extension = "SIP/XXXXXXX",
-      $callerID = "Title",
-      $context = "from-internal",
-      $timeout = "30000"
-  );
-  ```
-- `spyCall()`: Enables call monitoring feature
-  ```php
-  $pbx->spyCall(
-      $channel = "SIP/XXXXXX",
-      $extension = "SIP/XXXXXXX",
-      $listenMode = "q",
-      $callerID = "Monitoring"
-  );
-  ```
+// Belirli bir dahili hattın detaylarını getir
+$extension = $pbx->extension('1001');
+```
 
-#### 3. Call Detail Records (CDR)
-- `cdr()`: Query call records
-  ```php
-  $pbx->cdr(
-      $startDate = "2024-01-01",
-      $endDate = "2024-01-20",
-      $filter = "all"
-  );
-  ```
-- `cdrPlayer()`: Listen to call recordings
-  ```php
-  $pbx->cdrPlayer($cdrFile);
-  ```
+### Çağrı Yönetimi
+```php
+// Çağrı başlatma
+$pbx->originate(
+    $channel = "SIP/1001",
+    $extension = "SIP/1002",
+    $callerID = "İç Hat Araması",
+    $context = "from-internal",
+    $timeout = "30000"
+);
 
-### Error Handling
-The library includes comprehensive error handling for API connections and requests. All methods may throw `ConnectionException` or general exceptions with detailed error messages.
+// Aktif kanalları izleme
+$channels = $pbx->channels();
 
-### Authentication
-Authentication is handled automatically through the `getToken()` method, which manages API tokens for secure communication with the PBX system.
+// Aktif çağrıyı dinleme
+$pbx->spyCall(
+    $channel = "SIP/1001",
+    $extension = "SIP/1002",
+    $listenMode = "q",
+    $callerID = "İzleme"
+);
+```
 
+### CDR Erişimi
+```php
+// Çağrı kayıtlarını getir
+$cdr = $pbx->cdr(
+    $startDate = "2024-01-01",
+    $endDate = "2024-01-31",
+    $filter = "all"
+);
 
+// Çağrı kaydını dinleme
+$recording = $pbx->cdrPlayer($cdrFile);
+```
 
-------------
+## 📝 Önemli Notlar
 
-
-# IssabelPbxApi Documentation
-
-## 🇹🇷 Türkçe
-
-### Genel Bakış
-IssabelPbxApi, Issabel PBX sistemleri için geliştirilmiş Laravel tabanlı bir API wrapper'dır. Standart PBX API'sinde bulunmayan çeşitli gelişmiş özellikleri içerir ve PBX sisteminizle kolay entegrasyon sağlar.
-
-### Kurulum Adımları
-
-1. Laravel projenize IssabelPbxApi sınıfını ekleyin.
-
-2. Issabel sunucunuzda kurulum:
-   - `/var/www/html/pbxapi/controllers` dizinine gidin
-   - Bu dizine `v2apiservice.php` dosyasını aşağıdaki içerikle oluşturun:
-
-### V2ApiService Özellikleri
-
-1. Çağrı Kayıtları (CDR)
-   - Tarih aralığına göre filtreleme
-   - Dahili numaraya göre filtreleme
-   - Detaylı çağrı bilgileri (süre, durum, kayıt dosyası vb.)
-
-2. Aktif Kanal İzleme
-   - Anlık kanal durumları
-   - Kanal detayları (dahili no, konum, durum)
-   - SIP/MMT-Out kanalları hariç tutma
-
-3. Ses Kayıtları Oynatıcı
-   - Kayıt dosyalarına erişim
-   - Streaming desteği
-   - İndirilebilir format
-
-## 🇬🇧 English
-
-### Overview
-IssabelPbxApi is a Laravel-based API wrapper for Issabel PBX systems. It includes various advanced features not available in the standard PBX API and provides easy integration with your PBX system.
-
-### Installation Steps
-
-1. Add the IssabelPbxApi class to your Laravel project
-
-2. On your Issabel server:
-   - Navigate to `/var/www/html/pbxapi/controllers` directory
-   - Create `v2apiservice.php` file with the content shown above
-
-### V2ApiService Features
-
-1. Call Detail Records (CDR)
-   - Date range filtering
-   - Extension-based filtering
-   - Detailed call information (duration, disposition, recording file, etc.)
-
-2. Active Channel Monitoring
-   - Real-time channel status
-   - Channel details (extension, location, status)
-   - Excludes SIP/MMT-Out channels
-
-3. Recording Player
-   - Access to recording files
-   - Streaming support
-   - Downloadable format
-
-[... rest of the English documentation remains the same ...]
+- Kurulum öncesi sisteminizi yedekleyin
+- API erişimlerini güvenlik duvarı ile koruyun
+- Sistemi düzenli olarak güncelleyin
