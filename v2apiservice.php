@@ -106,29 +106,9 @@ class V2ApiService extends Rest
             return;
         }
     
-        if ($extension === 'all') {
-            $query = $db->prepare("
-                SELECT 
-                    COUNT(*) AS total_calls, 
-                    SUM(duration) AS total_seconds, 
-                    SUM(duration)/60 AS total_minutes 
-                FROM asteriskcdrdb.cdr 
-                WHERE calldate BETWEEN ? AND ?
-            ");
-            $query->execute([$startDate, $endDate]);
-        } else {
-            $query = $db->prepare("
-                SELECT 
-                    COUNT(*) AS total_calls, 
-                    SUM(duration) AS total_seconds, 
-                    SUM(duration)/60 AS total_minutes 
-                FROM asteriskcdrdb.cdr 
-                WHERE src=?
-                AND calldate BETWEEN ? AND ?
-            ");
-            $query->execute([intval($extension), $startDate, $endDate]);
-        }
-    
+        $query = $db->prepare("SELECT * FROM asteriskcdrdb.cdr WHERE  calldate BETWEEN ? AND ? ");
+        $query->execute([$startDate, $endDate]);
+        
         $result = $query->fetch(PDO::FETCH_ASSOC);
     
         if (!$result) {
