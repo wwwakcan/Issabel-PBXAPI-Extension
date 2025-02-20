@@ -126,7 +126,7 @@ class V2ApiService extends Rest
                 WHERE src=?
                 AND calldate BETWEEN ? AND ?
             ");
-            $query->execute([$extension, $startDate, $endDate]);
+            $query->execute([intval($extension), $startDate, $endDate]);
         }
     
         $result = $query->fetch(PDO::FETCH_ASSOC);
@@ -186,4 +186,3 @@ class V2ApiService extends Rest
     }
 }
 
- 
