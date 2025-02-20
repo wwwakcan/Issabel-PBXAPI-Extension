@@ -16,7 +16,7 @@ class V2ApiService extends Rest
         } elseif ($action === 'player') {
             $this->getPlayerData($f3);
         } elseif ($action === 'cdr-monitor') {
-            $this->getCDRTotalTimeAndCall($f3, $db);
+            $this->getAllCDRRecords($f3, $db);
         } elseif ($action === 'channels') {
             $this->getChannels();
         } else {
