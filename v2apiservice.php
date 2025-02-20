@@ -95,28 +95,23 @@ class V2ApiService extends Rest
         $this->sendSuccess($export);
     }
 
-    private function getCDRTotalTimeAndCall($f3, $db)
+    private function getAllCDRRecords($f3, $db)
     {
-        $startDate = $f3->get('REQUEST.start_date') ?: date("Y-m-d 00:00:01",strtotime("-2 days"));
-        $endDate = $f3->get('REQUEST.end_date') ?: date("Y-m-d 23:59:01");
-        $extension = $f3->get('REQUEST.extension') ?: 'all';
+        $startDate = $f3->get('REQUEST.start_date') ?: date("Y-m-d 00:00:01", strtotime("-2 days"));
+        $endDate = $f3->get('REQUEST.end_date') ?: date("Y-m-d 23:59:59");
     
         if (!$this->validateDate($startDate) || !$this->validateDate($endDate)) {
             $this->sendError('Invalid date format. Use YYYY-MM-DD.', 400);
             return;
         }
     
-        $query = $db->prepare("SELECT * FROM asteriskcdrdb.cdr WHERE  calldate BETWEEN ? AND ? ");
+        $query = $db->prepare("SELECT * FROM asteriskcdrdb.cdr WHERE calldate BETWEEN ? AND ?");
         $query->execute([$startDate, $endDate]);
-        
-        $result = $query->fetch(PDO::FETCH_ASSOC);
+    
+        $result = $query->fetchAll(PDO::FETCH_ASSOC);
     
         if (!$result) {
-            $result = [
-                'total_calls' => 0,
-                'total_seconds' => 0,
-                'total_minutes' => 0
-            ];
+            $result = ['message' => 'No CDR records found.'];
         }
     
         $this->sendSuccess($result);
