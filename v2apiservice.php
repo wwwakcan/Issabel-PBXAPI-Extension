@@ -15,6 +15,8 @@ class V2ApiService extends Rest
             $this->getCdrData($f3, $db);
         } elseif ($action === 'player') {
             $this->getPlayerData($f3);
+        } elseif ($action === 'cdr-monitor') {
+            $this->getCDRTotalTimeAndCall($f3, $db);
         } elseif ($action === 'channels') {
             $this->getChannels();
         } else {
@@ -77,7 +79,7 @@ class V2ApiService extends Rest
             );
         } else {
             $query = $db->exec(
-                "SELECT calldate, clid, src, dst, dcontext, channel, dstchannel, disposition, billsec, duration, uniqueid, recordingfile, cnum, cnam FROM asteriskcdrdb.cdr WHERE cnum = ? AND calldate BETWEEN ? AND ? ORDER BY calldate DESC",
+                "SELECT calldate, clid, src, dst, dcontext, channel, dstchannel, disposition, billsec, duration, uniqueid, recordingfile, cnum, cnam FROM asteriskcdrdb.cdr WHERE src = ? AND calldate BETWEEN ? AND ? ORDER BY calldate DESC",
                 [$extension, $startDate, $endDate]
             );
         }
@@ -92,6 +94,54 @@ class V2ApiService extends Rest
 
         $this->sendSuccess($export);
     }
+
+    private function getCDRTotalTimeAndCall($f3, $db)
+    {
+        $startDate = $f3->get('REQUEST.start_date') ?: date("Y-m-d 00:00:01",strtotime("-2 days"));
+        $endDate = $f3->get('REQUEST.end_date') ?: date("Y-m-d 23:59:01");
+        $extension = $f3->get('REQUEST.extension') ?: 'all';
+    
+        if (!$this->validateDate($startDate) || !$this->validateDate($endDate)) {
+            $this->sendError('Invalid date format. Use YYYY-MM-DD.', 400);
+            return;
+        }
+    
+        if ($extension === 'all') {
+            $query = $db->prepare("
+                SELECT 
+                    COUNT(*) AS total_calls, 
+                    SUM(duration) AS total_seconds, 
+                    SUM(duration)/60 AS total_minutes 
+                FROM asteriskcdrdb.cdr 
+                WHERE calldate BETWEEN ? AND ?
+            ");
+            $query->execute([$startDate, $endDate]);
+        } else {
+            $query = $db->prepare("
+                SELECT 
+                    COUNT(*) AS total_calls, 
+                    SUM(duration) AS total_seconds, 
+                    SUM(duration)/60 AS total_minutes 
+                FROM asteriskcdrdb.cdr 
+                WHERE (src = ? OR dst = ?) 
+                AND calldate BETWEEN ? AND ?
+            ");
+            $query->execute([$extension, $extension, $startDate, $endDate]);
+        }
+    
+        $result = $query->fetch(PDO::FETCH_ASSOC);
+    
+        if (!$result) {
+            $result = [
+                'total_calls' => 0,
+                'total_seconds' => 0,
+                'total_minutes' => 0
+            ];
+        }
+    
+        $this->sendSuccess($result);
+    }
+    
 
     private function getPlayerData($f3)
     {
