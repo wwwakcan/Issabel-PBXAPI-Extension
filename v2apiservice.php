@@ -123,10 +123,10 @@ class V2ApiService extends Rest
                     SUM(duration) AS total_seconds, 
                     SUM(duration)/60 AS total_minutes 
                 FROM asteriskcdrdb.cdr 
-                WHERE (src = ? OR dst = ?) 
+                WHERE src=?
                 AND calldate BETWEEN ? AND ?
             ");
-            $query->execute([$extension, $extension, $startDate, $endDate]);
+            $query->execute([$extension, $startDate, $endDate]);
         }
     
         $result = $query->fetch(PDO::FETCH_ASSOC);
