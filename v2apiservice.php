@@ -36,24 +36,30 @@ class V2ApiService extends Rest
         }
 
         $export = [];
+
         foreach ($processedOutput as $line) {
-
-            $parts = explode(
-                ' ',
-                preg_replace('/\s+/', ' ', $line),
-                4
-            );
-
-            if(!strpos($parts[0],"SIP/MMT-Out")){
+            if (preg_match('/(SIP\/(\d+)-\w+)\s+s@macro-dialout-trun\s+\w+\s+Dial\(SIP\/MMT-Out\/(\d+)/', $line, $matches)) {
                 $export[] = [
-                    "channel" => $parts[0],
-                    "extension" => explode("-", explode("/", $parts[0])[1])[0],
-                    "location" => $parts[1],
-                    "status" => $parts[2],
-                    "data" => $parts[0]
+                    'channel' => $matches[1],
+                    'extension' => $matches[2],
+                    'destination' => $matches[3],
+                    'status' => 'up'
+                ];
+            } elseif (preg_match('/(SIP\/(\d+)-\w+)\s+s-BUSY@macro-dialout/', $line, $matches)) {
+                $export[] = [
+                    'channel' => $matches[1],
+                    'extension' => $matches[2],
+                    'destination' => '-',
+                    'status' => 'down'
+                ];
+            } elseif (preg_match('/SIP\/MMT-Out-\w+\s+(\d+)@from-tr\w*\s+Ringing/', $line, $matches)) {
+                $export[] = [
+                    'channel' => '-',
+                    'extension' => '-',
+                    'destination' => $matches[1],
+                    'status' => 'ring'
                 ];
             }
-
         }
 
         $this->sendSuccess($export);
