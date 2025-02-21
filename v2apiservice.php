@@ -17,12 +17,48 @@ class V2ApiService extends Rest
             $this->getPlayerData($f3);
         } elseif ($action === 'cdr-monitor') {
             $this->getCDRMonitor($f3, $db);
+        } elseif ($action === 'dst-monitor') {
+            $this->getCdrDataByDst($f3, $db);
         } elseif ($action === 'channels') {
             $this->getChannels();
         } else {
             $this->sendError('Invalid action.', 400);
         }
     }
+
+
+    private function getCdrDataByDst($f3, $db)
+    {
+        $dstNumber = $f3->get('REQUEST.dst') ?: 'all';
+        $extNumber = $f3->get('REQUEST.ext') ?: 'all';
+
+        if ($dstNumber === "all") {
+            $query = $db->exec(
+                "SELECT calldate, clid, src, dst, dcontext, channel, dstchannel, disposition, billsec, duration, uniqueid, recordingfile, cnum, cnam 
+                FROM asteriskcdrdb.cdr 
+                ORDER BY calldate DESC"
+            );
+        } else {
+            $query = $db->exec(
+                "SELECT calldate, clid, src, dst, dcontext, channel, dstchannel, disposition, billsec, duration, uniqueid, recordingfile, cnum, cnam 
+                FROM asteriskcdrdb.cdr 
+                WHERE dst = ? and (cnum=? OR cnam=? OR src=?)
+                ORDER BY calldate DESC",
+                [$dstNumber,$extNumber,$extNumber,$extNumber]
+            );
+        }
+
+        $export = [];
+        foreach ($query as $data) {
+            $dateParts = strtotime($data['calldate']);
+            $recordingFilePath = sprintf("/%s/%s/%s/%s", date("Y", $dateParts), date("m", $dateParts), date("d", $dateParts), $data['recordingfile']);
+            $data['recordingfile'] = $recordingFilePath;
+            $export[] = $data;
+        }
+
+        $this->sendSuccess($export);
+    }
+
 
     private function getChannels()
     {
@@ -157,18 +193,32 @@ class V2ApiService extends Rest
             $this->sendError('File parameter is required for player action.', 400);
             return;
         }
+      
 
-        $filePath = "/var/spool/asterisk/monitor$file";
+        if(file_exists("/var/spool/asterisk/monitor$file")){
 
-        if (file_exists($filePath)) {
+            $filePath = "/var/spool/asterisk/monitor$file";
+
             header('Content-Type: audio/mpeg');
             header('Content-Length: ' . filesize($filePath));
             header(sprintf('Content-Disposition: inline; filename="%s"', $file));
 
             readfile($filePath);
-        } else {
+
+        }else if(file_exists("/var/spool/asterisk/monitor$file.mp3")){
+
+            $filePath = "/var/spool/asterisk/monitor$file.mp3";
+
+            header('Content-Type: audio/mpeg');
+            header('Content-Length: ' . filesize($filePath));
+            header(sprintf('Content-Disposition: inline; filename="%s"', $file));
+
+            readfile($filePath);
+
+        }else{
             echo 'File not found.';
         }
+
     }
 
 
