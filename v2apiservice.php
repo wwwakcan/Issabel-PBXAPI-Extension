@@ -86,7 +86,7 @@ class V2ApiService extends Rest
         } else {
             $query = $db->exec(
                 "SELECT calldate, clid, src, dst, dcontext, channel, dstchannel, disposition, billsec, duration, uniqueid, recordingfile, cnum, cnam FROM asteriskcdrdb.cdr WHERE (cnum=? OR cnam=? OR src=?) AND calldate BETWEEN ? AND ? ORDER BY calldate DESC",
-                [$extension, $extension, $extension, $startDate, $endDate]
+                [$extension, $extension, $extension, sprintf("%s 00:00:01",$startDate), sprintf("%s 23:59:59",$endDate)]
             );
         }
 
@@ -121,7 +121,7 @@ class V2ApiService extends Rest
                 FROM asteriskcdrdb.cdr 
                 WHERE calldate BETWEEN ? AND ?
             ");
-            $query->execute([$startDate, $endDate]);
+            $query->execute([sprintf("%s 00:00:01",$startDate), sprintf("%s 23:59:59",$endDate)]);
         } else {
             $query = $db->prepare("
                 SELECT 
@@ -132,7 +132,7 @@ class V2ApiService extends Rest
                 WHERE (cnum=? OR cnam=? OR src=?)
                 AND calldate BETWEEN ? AND ?
             ");
-            $query->execute([$extension, $extension, $extension, $startDate, $endDate]);
+            $query->execute([$extension, $extension, $extension, sprintf("%s 00:00:01",$startDate), sprintf("%s 23:59:59",$endDate)]);
         }
     
         $result = $query->fetch(PDO::FETCH_ASSOC);
