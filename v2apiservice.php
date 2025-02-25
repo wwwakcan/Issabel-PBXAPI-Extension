@@ -142,6 +142,7 @@ class V2ApiService extends Rest
         $startDate = $f3->get('REQUEST.start_date') ?: date("Y-m-d 00:00:01",strtotime("-2 days"));
         $endDate = $f3->get('REQUEST.end_date') ?: date("Y-m-d 23:59:01");
         $extension = $f3->get('REQUEST.extension') ?: 'all';
+        $disposition = $f3->get('REQUEST.disposition') ?: 'ANSWERED';
     
         if (!$this->validateDate($startDate) || !$this->validateDate($endDate)) {
             $this->sendError('Invalid date format. Use YYYY-MM-DD.', 400);
@@ -155,9 +156,9 @@ class V2ApiService extends Rest
                     SUM(duration) AS total_seconds, 
                     SUM(duration)/60 AS total_minutes 
                 FROM asteriskcdrdb.cdr 
-                WHERE calldate BETWEEN ? AND ?
+                WHERE calldate BETWEEN ? AND ? AND disposition = ?
             ");
-            $query->execute([sprintf("%s 00:00:01",$startDate), sprintf("%s 23:59:59",$endDate)]);
+            $query->execute([sprintf("%s 00:00:01",$startDate), sprintf("%s 23:59:59",$endDate),$disposition]);
         } else {
             $query = $db->prepare("
                 SELECT 
@@ -165,10 +166,11 @@ class V2ApiService extends Rest
                     SUM(duration) AS total_seconds, 
                     SUM(duration)/60 AS total_minutes 
                 FROM asteriskcdrdb.cdr 
-                WHERE (cnum=? OR cnam=? OR src=?)
+                WHERE (cnum=? OR cnam=? OR src=?) 
+                AND disposition = ?
                 AND calldate BETWEEN ? AND ?
             ");
-            $query->execute([$extension, $extension, $extension, sprintf("%s 00:00:01",$startDate), sprintf("%s 23:59:59",$endDate)]);
+            $query->execute([$extension, $extension, $extension, $disposition, sprintf("%s 00:00:01",$startDate), sprintf("%s 23:59:59",$endDate)]);
         }
     
         $result = $query->fetch(PDO::FETCH_ASSOC);
