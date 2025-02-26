@@ -137,19 +137,21 @@ class V2ApiService extends Rest
         $this->sendSuccess($export);
     }
 
-    private function getCDRMonitor($f3, $db)
-    {
-        $startDate = $f3->get('REQUEST.start_date') ?: date("Y-m-d 00:00:01",strtotime("-2 days"));
-        $endDate = $f3->get('REQUEST.end_date') ?: date("Y-m-d 23:59:01");
-        $extension = $f3->get('REQUEST.extension') ?: 'all';
-        $disposition = $f3->get('REQUEST.disposition') ?: 'ANSWERED';
-    
-        if (!$this->validateDate($startDate) || !$this->validateDate($endDate)) {
-            $this->sendError('Invalid date format. Use YYYY-MM-DD.', 400);
-            return;
-        }
-    
-        if ($extension === 'all') {
+  private function getCDRMonitor($f3, $db)
+{
+    $startDate = $f3->get('REQUEST.start_date') ?: date("Y-m-d 00:00:01",strtotime("-2 days"));
+    $endDate = $f3->get('REQUEST.end_date') ?: date("Y-m-d 23:59:01");
+    $extension = $f3->get('REQUEST.extension') ?: 'all';
+    $disposition = $f3->get('REQUEST.disposition') ?: null;
+
+    if (!$this->validateDate($startDate) || !$this->validateDate($endDate)) {
+        $this->sendError('Invalid date format. Use YYYY-MM-DD.', 400);
+        return;
+    }
+
+    if ($extension === 'all') {
+        if ($disposition) {
+            // If disposition is provided, filter by it
             $query = $db->prepare("
                 SELECT 
                     COUNT(*) AS total_calls, 
@@ -158,8 +160,22 @@ class V2ApiService extends Rest
                 FROM asteriskcdrdb.cdr 
                 WHERE calldate BETWEEN ? AND ? AND disposition = ?
             ");
-            $query->execute([sprintf("%s 00:00:01",$startDate), sprintf("%s 23:59:59",$endDate),$disposition]);
+            $query->execute([sprintf("%s 00:00:01",$startDate), sprintf("%s 23:59:59",$endDate), $disposition]);
         } else {
+            // If no disposition provided, ignore it
+            $query = $db->prepare("
+                SELECT 
+                    COUNT(*) AS total_calls, 
+                    SUM(duration) AS total_seconds, 
+                    SUM(duration)/60 AS total_minutes 
+                FROM asteriskcdrdb.cdr 
+                WHERE calldate BETWEEN ? AND ?
+            ");
+            $query->execute([sprintf("%s 00:00:01",$startDate), sprintf("%s 23:59:59",$endDate)]);
+        }
+    } else {
+        if ($disposition) {
+            // If disposition is provided, filter by it
             $query = $db->prepare("
                 SELECT 
                     COUNT(*) AS total_calls, 
@@ -171,20 +187,33 @@ class V2ApiService extends Rest
                 AND calldate BETWEEN ? AND ?
             ");
             $query->execute([$extension, $extension, $extension, $disposition, sprintf("%s 00:00:01",$startDate), sprintf("%s 23:59:59",$endDate)]);
+        } else {
+            // If no disposition provided, ignore it
+            $query = $db->prepare("
+                SELECT 
+                    COUNT(*) AS total_calls, 
+                    SUM(duration) AS total_seconds, 
+                    SUM(duration)/60 AS total_minutes 
+                FROM asteriskcdrdb.cdr 
+                WHERE (cnum=? OR cnam=? OR src=?) 
+                AND calldate BETWEEN ? AND ?
+            ");
+            $query->execute([$extension, $extension, $extension, sprintf("%s 00:00:01",$startDate), sprintf("%s 23:59:59",$endDate)]);
         }
-    
-        $result = $query->fetch(PDO::FETCH_ASSOC);
-    
-        if (!$result) {
-            $result = [
-                'total_calls' => 0,
-                'total_seconds' => 0,
-                'total_minutes' => 0
-            ];
-        }
-    
-        $this->sendSuccess($result);
     }
+
+    $result = $query->fetch(PDO::FETCH_ASSOC);
+
+    if (!$result) {
+        $result = [
+            'total_calls' => 0,
+            'total_seconds' => 0,
+            'total_minutes' => 0
+        ];
+    }
+
+    $this->sendSuccess($result);
+}
     
 
     private function getPlayerData($f3)
