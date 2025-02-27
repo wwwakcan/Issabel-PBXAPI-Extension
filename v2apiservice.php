@@ -137,82 +137,76 @@ class V2ApiService extends Rest
         $this->sendSuccess($export);
     }
 
-  private function getCDRMonitor($f3, $db)
+private function getCDRMonitor($f3, $db)
 {
     $startDate = $f3->get('REQUEST.start_date') ?: date("Y-m-d 00:00:01",strtotime("-2 days"));
     $endDate = $f3->get('REQUEST.end_date') ?: date("Y-m-d 23:59:01");
     $extension = $f3->get('REQUEST.extension') ?: 'all';
-    $disposition = $f3->get('REQUEST.disposition') ?: null;
-
+    
     if (!$this->validateDate($startDate) || !$this->validateDate($endDate)) {
         $this->sendError('Invalid date format. Use YYYY-MM-DD.', 400);
         return;
     }
-
+    
+    // Her zaman tüm disposition'ları grupla
     if ($extension === 'all') {
-        if ($disposition) {
-            // If disposition is provided, filter by it
-            $query = $db->prepare("
-                SELECT 
-                    COUNT(*) AS total_calls, 
-                    SUM(duration) AS total_seconds, 
-                    SUM(duration)/60 AS total_minutes 
-                FROM asteriskcdrdb.cdr 
-                WHERE calldate BETWEEN ? AND ? AND disposition = ?
-            ");
-            $query->execute([sprintf("%s 00:00:01",$startDate), sprintf("%s 23:59:59",$endDate), $disposition]);
-        } else {
-            // If no disposition provided, ignore it
-            $query = $db->prepare("
-                SELECT 
-                    COUNT(*) AS total_calls, 
-                    SUM(duration) AS total_seconds, 
-                    SUM(duration)/60 AS total_minutes 
-                FROM asteriskcdrdb.cdr 
-                WHERE calldate BETWEEN ? AND ?
-            ");
-            $query->execute([sprintf("%s 00:00:01",$startDate), sprintf("%s 23:59:59",$endDate)]);
-        }
+        $query = $db->prepare("
+            SELECT 
+                disposition,
+                COUNT(*) AS total_calls, 
+                SUM(duration) AS total_seconds, 
+                SUM(duration)/60 AS total_minutes 
+            FROM asteriskcdrdb.cdr 
+            WHERE calldate BETWEEN ? AND ?
+            GROUP BY disposition
+        ");
+        $query->execute([sprintf("%s 00:00:01",$startDate), sprintf("%s 23:59:59",$endDate)]);
     } else {
-        if ($disposition) {
-            // If disposition is provided, filter by it
-            $query = $db->prepare("
-                SELECT 
-                    COUNT(*) AS total_calls, 
-                    SUM(duration) AS total_seconds, 
-                    SUM(duration)/60 AS total_minutes 
-                FROM asteriskcdrdb.cdr 
-                WHERE (cnum=? OR cnam=? OR src=?) 
-                AND disposition = ?
-                AND calldate BETWEEN ? AND ?
-            ");
-            $query->execute([$extension, $extension, $extension, $disposition, sprintf("%s 00:00:01",$startDate), sprintf("%s 23:59:59",$endDate)]);
-        } else {
-            // If no disposition provided, ignore it
-            $query = $db->prepare("
-                SELECT 
-                    COUNT(*) AS total_calls, 
-                    SUM(duration) AS total_seconds, 
-                    SUM(duration)/60 AS total_minutes 
-                FROM asteriskcdrdb.cdr 
-                WHERE (cnum=? OR cnam=? OR src=?) 
-                AND calldate BETWEEN ? AND ?
-            ");
-            $query->execute([$extension, $extension, $extension, sprintf("%s 00:00:01",$startDate), sprintf("%s 23:59:59",$endDate)]);
-        }
+        // Belirli extension için tüm disposition'ları grupla
+        $query = $db->prepare("
+            SELECT 
+                disposition,
+                COUNT(*) AS total_calls, 
+                SUM(duration) AS total_seconds, 
+                SUM(duration)/60 AS total_minutes 
+            FROM asteriskcdrdb.cdr 
+            WHERE (cnum=? OR cnam=? OR src=?) 
+            AND calldate BETWEEN ? AND ?
+            GROUP BY disposition
+        ");
+        $query->execute([$extension, $extension, $extension, sprintf("%s 00:00:01",$startDate), sprintf("%s 23:59:59",$endDate)]);
     }
-
-    $result = $query->fetch(PDO::FETCH_ASSOC);
-
-    if (!$result) {
-        $result = [
+    
+    $results = $query->fetchAll(PDO::FETCH_ASSOC);
+    
+    if (empty($results)) {
+        $results = [
+            [
+                'disposition' => 'NO DATA',
+                'total_calls' => 0,
+                'total_seconds' => 0,
+                'total_minutes' => 0
+            ]
+        ];
+    } else {
+        // Toplam sonuçları da ekle
+        $grandTotal = [
+            'disposition' => 'TOTAL',
             'total_calls' => 0,
             'total_seconds' => 0,
             'total_minutes' => 0
         ];
+        
+        foreach ($results as $result) {
+            $grandTotal['total_calls'] += $result['total_calls'];
+            $grandTotal['total_seconds'] += $result['total_seconds'];
+            $grandTotal['total_minutes'] += $result['total_minutes'];
+        }
+        
+        $results[] = $grandTotal;
     }
-
-    $this->sendSuccess($result);
+    
+    $this->sendSuccess($results);
 }
     
 
