@@ -256,26 +256,8 @@ class V2ApiService extends Rest
             $linkQueryParams = $queryParams;
             $linkQueryParams['page'] = $i;
             $url = $baseUrl . '?' . http_build_query($linkQueryParams);
-
-            $links[] = [
-                'url' => $i == $page ? null : $url,
-                'label' => (string)$i,
-                'active' => $i == $page
-            ];
         }
 
-        // Add previous and next text links
-        array_unshift($links, [
-            'url' => $prevPageUrl,
-            'label' => '&laquo; Previous',
-            'active' => false
-        ]);
-
-        array_push($links, [
-            'url' => $nextPageUrl,
-            'label' => 'Next &raquo;',
-            'active' => false
-        ]);
 
         // Prepare Eloquent-style pagination response
         $response = [
@@ -285,7 +267,6 @@ class V2ApiService extends Rest
             'from' => $from,
             'last_page' => $totalPages,
             'last_page_url' => $lastPageUrl,
-            'links' => $links,
             'next_page_url' => $nextPageUrl,
             'path' => $baseUrl,
             'per_page' => $perPage,
