@@ -199,28 +199,99 @@ class V2ApiService extends Rest
         $query = $db->exec($sql, $params);
 
         // Process results
-        $export = [];
-        foreach ($query as $data) {
-            $dateParts = strtotime($data['calldate']);
+        $data = [];
+        foreach ($query as $item) {
+            $dateParts = strtotime($item['calldate']);
             $recordingFilePath = sprintf("/%s/%s/%s/%s",
                 date("Y", $dateParts),
                 date("m", $dateParts),
                 date("d", $dateParts),
-                $data['recordingfile']
+                $item['recordingfile']
             );
-            $data['recordingfile'] = $recordingFilePath;
-            $export[] = $data;
+            $item['recordingfile'] = $recordingFilePath;
+            $data[] = $item;
         }
 
-        // Prepare response with pagination metadata
+        // Build base URL for pagination links
+        $baseUrl = $f3->get('PATH');
+        $queryParams = $f3->get('GET');
+
+        // Create pagination links array
+        $links = [];
+
+        // Previous page link
+        if ($page > 1) {
+            $prevQueryParams = $queryParams;
+            $prevQueryParams['page'] = $page - 1;
+            $prevPageUrl = $baseUrl . '?' . http_build_query($prevQueryParams);
+        } else {
+            $prevPageUrl = null;
+        }
+
+        // Next page link
+        if ($page < $totalPages) {
+            $nextQueryParams = $queryParams;
+            $nextQueryParams['page'] = $page + 1;
+            $nextPageUrl = $baseUrl . '?' . http_build_query($nextQueryParams);
+        } else {
+            $nextPageUrl = null;
+        }
+
+        // First page link
+        $firstQueryParams = $queryParams;
+        $firstQueryParams['page'] = 1;
+        $firstPageUrl = $baseUrl . '?' . http_build_query($firstQueryParams);
+
+        // Last page link
+        $lastQueryParams = $queryParams;
+        $lastQueryParams['page'] = $totalPages;
+        $lastPageUrl = $baseUrl . '?' . http_build_query($lastQueryParams);
+
+        // Calculate from and to values
+        $from = $totalRecords ? ($offset + 1) : 0;
+        $to = min($offset + $perPage, $totalRecords);
+
+        // Generate numbered page links
+        for ($i = 1; $i <= $totalPages; $i++) {
+            $linkQueryParams = $queryParams;
+            $linkQueryParams['page'] = $i;
+            $url = $baseUrl . '?' . http_build_query($linkQueryParams);
+
+            $links[] = [
+                'url' => $i == $page ? null : $url,
+                'label' => (string)$i,
+                'active' => $i == $page
+            ];
+        }
+
+        // Add previous and next text links
+        array_unshift($links, [
+            'url' => $prevPageUrl,
+            'label' => '&laquo; Previous',
+            'active' => false
+        ]);
+
+        array_push($links, [
+            'url' => $nextPageUrl,
+            'label' => 'Next &raquo;',
+            'active' => false
+        ]);
+
+        // Prepare Eloquent-style pagination response
         $response = [
-            'data' => $export,
-            'pagination' => [
-                'current_page' => $page,
-                'per_page' => $perPage,
-                'total_records' => $totalRecords,
-                'total_pages' => $totalPages
-            ]
+            'current_page' => $page,
+            'data' => $data,
+            'first_page_url' => $firstPageUrl,
+            'from' => $from,
+            'last_page' => $totalPages,
+            'last_page_url' => $lastPageUrl,
+            'links' => $links,
+            'next_page_url' => $nextPageUrl,
+            'path' => $baseUrl,
+            'per_page' => $perPage,
+            'prev_page_url' => $prevPageUrl,
+            'to' => $to,
+            'total' => $totalRecords
         ];
 
         $this->sendSuccess($response);
