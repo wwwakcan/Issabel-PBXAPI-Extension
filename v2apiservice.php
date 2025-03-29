@@ -142,63 +142,51 @@ class V2ApiService extends Rest
 
     private function getCdrDataSearch($f3, $db)
     {
-        // Get mandatory date range parameters
+
         $startDate = $f3->get('REQUEST.start_date');
         $endDate = $f3->get('REQUEST.end_date');
 
-        // Get optional filter parameters
         $extension = $f3->get('REQUEST.extension');
         $calledNumber = $f3->get('REQUEST.called_number');
 
         // Get pagination parameters
         $page = (int)$f3->get('REQUEST.page') ?: 1;
-        $perPage = 20; // Fixed number of records per page
+        $perPage = 20;
 
-        // Validate date parameters
         if (!$startDate || !$endDate || !$this->validateDate($startDate) || !$this->validateDate($endDate)) {
             $this->sendError('Invalid date format or missing date parameters. Use YYYY-MM-DD.', 400);
             return;
         }
 
-        // Base conditions with mandatory date filtering
         $conditions = "calldate BETWEEN ? AND ?";
         $params = [sprintf("%s 00:00:01", $startDate), sprintf("%s 23:59:59", $endDate)];
 
-        // Add extension filter if provided
         if ($extension && $extension !== "all") {
             $conditions .= " AND (cnum=? OR cnam=? OR src=?)";
             $params = array_merge($params, [$extension, $extension, $extension]);
         }
 
-        // Add called number filter if provided
         if ($calledNumber) {
             $conditions .= " AND (dst=?)";
             $params[] = $calledNumber;
         }
 
-        // Count total records for pagination
         $countSql = "SELECT COUNT(*) as total FROM asteriskcdrdb.cdr WHERE " . $conditions;
         $totalRecords = $db->exec($countSql, $params)[0]['total'];
 
-        // Calculate total pages
         $totalPages = ceil($totalRecords / $perPage);
 
-        // Ensure page is within valid range
         if ($page < 1) $page = 1;
         if ($page > $totalPages && $totalPages > 0) $page = $totalPages;
 
-        // Calculate offset for pagination
         $offset = ($page - 1) * $perPage;
 
-        // Build the main query with pagination
         $sql = "SELECT * FROM asteriskcdrdb.cdr WHERE " . $conditions . " ORDER BY calldate DESC LIMIT ? OFFSET ?";
         $params[] = $perPage;
         $params[] = $offset;
 
-        // Execute the query
         $query = $db->exec($sql, $params);
 
-        // Process results
         $data = [];
         foreach ($query as $item) {
             $dateParts = strtotime($item['calldate']);
@@ -212,14 +200,10 @@ class V2ApiService extends Rest
             $data[] = $item;
         }
 
-        // Build base URL for pagination links
         $baseUrl = $f3->get('PATH');
         $queryParams = $f3->get('GET');
 
-        // Create pagination links array
-        $links = [];
 
-        // Previous page link
         if ($page > 1) {
             $prevQueryParams = $queryParams;
             $prevQueryParams['page'] = $page - 1;
@@ -228,7 +212,6 @@ class V2ApiService extends Rest
             $prevPageUrl = null;
         }
 
-        // Next page link
         if ($page < $totalPages) {
             $nextQueryParams = $queryParams;
             $nextQueryParams['page'] = $page + 1;
@@ -237,29 +220,17 @@ class V2ApiService extends Rest
             $nextPageUrl = null;
         }
 
-        // First page link
         $firstQueryParams = $queryParams;
         $firstQueryParams['page'] = 1;
         $firstPageUrl = $baseUrl . '?' . http_build_query($firstQueryParams);
 
-        // Last page link
         $lastQueryParams = $queryParams;
         $lastQueryParams['page'] = $totalPages;
         $lastPageUrl = $baseUrl . '?' . http_build_query($lastQueryParams);
 
-        // Calculate from and to values
         $from = $totalRecords ? ($offset + 1) : 0;
         $to = min($offset + $perPage, $totalRecords);
 
-        // Generate numbered page links
-        for ($i = 1; $i <= $totalPages; $i++) {
-            $linkQueryParams = $queryParams;
-            $linkQueryParams['page'] = $i;
-            $url = $baseUrl . '?' . http_build_query($linkQueryParams);
-        }
-
-
-        // Prepare Eloquent-style pagination response
         $response = [
             'current_page' => $page,
             'data' => $data,
