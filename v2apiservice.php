@@ -46,7 +46,7 @@ class V2ApiService extends Rest
                 FROM asteriskcdrdb.cdr
                 WHERE dst = ? and (cnum=? OR cnam=? OR src=?)
                 ORDER BY calldate DESC",
-                [$dstNumber,$extNumber,$extNumber,$extNumber]
+                [$dstNumber, $extNumber, $extNumber, $extNumber]
             );
         }
 
@@ -124,7 +124,7 @@ class V2ApiService extends Rest
         } else {
             $query = $db->exec(
                 "SELECT calldate, clid, src, dst, dcontext, channel, dstchannel, disposition, billsec, duration, uniqueid, recordingfile, cnum, cnam FROM asteriskcdrdb.cdr WHERE (cnum=? OR cnam=? OR src=?) AND calldate BETWEEN ? AND ? ORDER BY calldate DESC",
-                [$extension, $extension, $extension, sprintf("%s 00:00:01",$startDate), sprintf("%s 23:59:59",$endDate)]
+                [$extension, $extension, $extension, sprintf("%s 00:00:01", $startDate), sprintf("%s 23:59:59", $endDate)]
             );
         }
 
@@ -142,51 +142,37 @@ class V2ApiService extends Rest
 
     private function getCdrDataSearch($f3, $db)
     {
-
         $startDate = $f3->get('REQUEST.start_date');
         $endDate = $f3->get('REQUEST.end_date');
-
         $extension = $f3->get('REQUEST.extension');
         $calledNumber = $f3->get('REQUEST.called_number');
-
         // Get pagination parameters
         $page = (int)$f3->get('REQUEST.page') ?: 1;
-        $perPage = 20;
-
+        $perPage = (int)$f3->get('REQUEST.per_page') ?: 20;
         if (!$startDate || !$endDate || !$this->validateDate($startDate) || !$this->validateDate($endDate)) {
             $this->sendError('Invalid date format or missing date parameters. Use YYYY-MM-DD.', 400);
             return;
         }
-
-        $conditions = "calldate BETWEEN ? AND ?";
+        $conditions = "calldate BETWEEN ? AND ? AND cnum != '' AND cnam != ''";
         $params = [sprintf("%s 00:00:01", $startDate), sprintf("%s 23:59:59", $endDate)];
-
         if ($extension && $extension !== "all") {
             $conditions .= " AND (cnum=? OR cnam=? OR src=?)";
             $params = array_merge($params, [$extension, $extension, $extension]);
         }
-
         if ($calledNumber) {
             $conditions .= " AND (dst=?)";
             $params[] = $calledNumber;
         }
-
         $countSql = "SELECT COUNT(*) as total FROM asteriskcdrdb.cdr WHERE " . $conditions;
         $totalRecords = $db->exec($countSql, $params)[0]['total'];
-
         $totalPages = ceil($totalRecords / $perPage);
-
         if ($page < 1) $page = 1;
         if ($page > $totalPages && $totalPages > 0) $page = $totalPages;
-
         $offset = ($page - 1) * $perPage;
-
         $sql = "SELECT * FROM asteriskcdrdb.cdr WHERE " . $conditions . " ORDER BY calldate DESC LIMIT ? OFFSET ?";
         $params[] = $perPage;
         $params[] = $offset;
-
         $query = $db->exec($sql, $params);
-
         $data = [];
         foreach ($query as $item) {
             $dateParts = strtotime($item['calldate']);
@@ -199,11 +185,8 @@ class V2ApiService extends Rest
             $item['recordingfile'] = $recordingFilePath;
             $data[] = $item;
         }
-
         $baseUrl = $f3->get('PATH');
         $queryParams = $f3->get('GET');
-
-
         if ($page > 1) {
             $prevQueryParams = $queryParams;
             $prevQueryParams['page'] = $page - 1;
@@ -211,7 +194,6 @@ class V2ApiService extends Rest
         } else {
             $prevPageUrl = null;
         }
-
         if ($page < $totalPages) {
             $nextQueryParams = $queryParams;
             $nextQueryParams['page'] = $page + 1;
@@ -219,18 +201,14 @@ class V2ApiService extends Rest
         } else {
             $nextPageUrl = null;
         }
-
         $firstQueryParams = $queryParams;
         $firstQueryParams['page'] = 1;
         $firstPageUrl = $baseUrl . '?' . http_build_query($firstQueryParams);
-
         $lastQueryParams = $queryParams;
         $lastQueryParams['page'] = $totalPages;
         $lastPageUrl = $baseUrl . '?' . http_build_query($lastQueryParams);
-
         $from = $totalRecords ? ($offset + 1) : 0;
         $to = min($offset + $perPage, $totalRecords);
-
         $response = [
             'current_page' => $page,
             'data' => $data,
@@ -245,13 +223,12 @@ class V2ApiService extends Rest
             'to' => $to,
             'total' => $totalRecords
         ];
-
         $this->sendSuccess($response);
     }
 
     private function getCDRMonitor($f3, $db)
     {
-        $startDate = $f3->get('REQUEST.start_date') ?: date("Y-m-d 00:00:01",strtotime("-2 days"));
+        $startDate = $f3->get('REQUEST.start_date') ?: date("Y-m-d 00:00:01", strtotime("-2 days"));
         $endDate = $f3->get('REQUEST.end_date') ?: date("Y-m-d 23:59:01");
         $extension = $f3->get('REQUEST.extension') ?: 'all';
 
@@ -272,7 +249,7 @@ class V2ApiService extends Rest
             WHERE calldate BETWEEN ? AND ?
             GROUP BY disposition
         ");
-            $query->execute([sprintf("%s 00:00:01",$startDate), sprintf("%s 23:59:59",$endDate)]);
+            $query->execute([sprintf("%s 00:00:01", $startDate), sprintf("%s 23:59:59", $endDate)]);
         } else {
             // Belirli extension için tüm disposition'ları grupla
             $query = $db->prepare("
@@ -286,7 +263,7 @@ class V2ApiService extends Rest
             AND calldate BETWEEN ? AND ?
             GROUP BY disposition
         ");
-            $query->execute([$extension, $extension, $extension, sprintf("%s 00:00:01",$startDate), sprintf("%s 23:59:59",$endDate)]);
+            $query->execute([$extension, $extension, $extension, sprintf("%s 00:00:01", $startDate), sprintf("%s 23:59:59", $endDate)]);
         }
 
         $results = $query->fetchAll(PDO::FETCH_ASSOC);
@@ -332,7 +309,7 @@ class V2ApiService extends Rest
         }
 
 
-        if(file_exists("/var/spool/asterisk/monitor$file")){
+        if (file_exists("/var/spool/asterisk/monitor$file")) {
 
             $filePath = "/var/spool/asterisk/monitor$file";
 
@@ -342,7 +319,7 @@ class V2ApiService extends Rest
 
             readfile($filePath);
 
-        }else if(file_exists("/var/spool/asterisk/monitor$file.mp3")){
+        } else if (file_exists("/var/spool/asterisk/monitor$file.mp3")) {
 
             $filePath = "/var/spool/asterisk/monitor$file.mp3";
 
@@ -352,7 +329,7 @@ class V2ApiService extends Rest
 
             readfile($filePath);
 
-        }else{
+        } else {
             echo 'File not found.';
         }
 
