@@ -150,30 +150,50 @@ class V2ApiService extends Rest
         $extension = $f3->get('REQUEST.extension');
         $calledNumber = $f3->get('REQUEST.called_number');
 
+        // Get pagination parameters
+        $page = (int)$f3->get('REQUEST.page') ?: 1;
+        $perPage = 20; // Fixed number of records per page
+
         // Validate date parameters
         if (!$startDate || !$endDate || !$this->validateDate($startDate) || !$this->validateDate($endDate)) {
             $this->sendError('Invalid date format or missing date parameters. Use YYYY-MM-DD.', 400);
             return;
         }
 
-        // Base query with mandatory date filtering
-        $sql = "SELECT * FROM asteriskcdrdb.cdr WHERE calldate BETWEEN ? AND ?";
+        // Base conditions with mandatory date filtering
+        $conditions = "calldate BETWEEN ? AND ?";
         $params = [sprintf("%s 00:00:01", $startDate), sprintf("%s 23:59:59", $endDate)];
 
         // Add extension filter if provided
         if ($extension && $extension !== "all") {
-            $sql .= " AND (cnum=? OR cnam=? OR src=?)";
+            $conditions .= " AND (cnum=? OR cnam=? OR src=?)";
             $params = array_merge($params, [$extension, $extension, $extension]);
         }
 
         // Add called number filter if provided
         if ($calledNumber) {
-            $sql .= " AND (dst=?)";
+            $conditions .= " AND (dst=?)";
             $params[] = $calledNumber;
         }
 
-        // Add sorting
-        $sql .= " ORDER BY calldate DESC";
+        // Count total records for pagination
+        $countSql = "SELECT COUNT(*) as total FROM asteriskcdrdb.cdr WHERE " . $conditions;
+        $totalRecords = $db->exec($countSql, $params)[0]['total'];
+
+        // Calculate total pages
+        $totalPages = ceil($totalRecords / $perPage);
+
+        // Ensure page is within valid range
+        if ($page < 1) $page = 1;
+        if ($page > $totalPages && $totalPages > 0) $page = $totalPages;
+
+        // Calculate offset for pagination
+        $offset = ($page - 1) * $perPage;
+
+        // Build the main query with pagination
+        $sql = "SELECT * FROM asteriskcdrdb.cdr WHERE " . $conditions . " ORDER BY calldate DESC LIMIT ? OFFSET ?";
+        $params[] = $perPage;
+        $params[] = $offset;
 
         // Execute the query
         $query = $db->exec($sql, $params);
@@ -192,7 +212,18 @@ class V2ApiService extends Rest
             $export[] = $data;
         }
 
-        $this->sendSuccess($export);
+        // Prepare response with pagination metadata
+        $response = [
+            'data' => $export,
+            'pagination' => [
+                'current_page' => $page,
+                'per_page' => $perPage,
+                'total_records' => $totalRecords,
+                'total_pages' => $totalPages
+            ]
+        ];
+
+        $this->sendSuccess($response);
     }
 
     private function getCDRMonitor($f3, $db)
