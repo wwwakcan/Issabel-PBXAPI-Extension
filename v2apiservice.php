@@ -17,6 +17,8 @@ class V2ApiService extends Rest
             $this->getPlayerData($f3);
         } elseif ($action === 'cdr-monitor') {
             $this->getCDRMonitor($f3, $db);
+        } elseif ($action === 'cdr-search') {
+            $this->getCdrDataSearch($f3, $db);
         } elseif ($action === 'dst-monitor') {
             $this->getCdrDataByDst($f3, $db);
         } elseif ($action === 'channels') {
@@ -34,14 +36,14 @@ class V2ApiService extends Rest
 
         if ($dstNumber === "all") {
             $query = $db->exec(
-                "SELECT calldate, clid, src, dst, dcontext, channel, dstchannel, disposition, billsec, duration, uniqueid, recordingfile, cnum, cnam 
-                FROM asteriskcdrdb.cdr 
+                "SELECT calldate, clid, src, dst, dcontext, channel, dstchannel, disposition, billsec, duration, uniqueid, recordingfile, cnum, cnam
+                FROM asteriskcdrdb.cdr
                 ORDER BY calldate DESC"
             );
         } else {
             $query = $db->exec(
-                "SELECT calldate, clid, src, dst, dcontext, channel, dstchannel, disposition, billsec, duration, uniqueid, recordingfile, cnum, cnam 
-                FROM asteriskcdrdb.cdr 
+                "SELECT calldate, clid, src, dst, dcontext, channel, dstchannel, disposition, billsec, duration, uniqueid, recordingfile, cnum, cnam
+                FROM asteriskcdrdb.cdr
                 WHERE dst = ? and (cnum=? OR cnam=? OR src=?)
                 ORDER BY calldate DESC",
                 [$dstNumber,$extNumber,$extNumber,$extNumber]
@@ -137,78 +139,134 @@ class V2ApiService extends Rest
         $this->sendSuccess($export);
     }
 
-private function getCDRMonitor($f3, $db)
-{
-    $startDate = $f3->get('REQUEST.start_date') ?: date("Y-m-d 00:00:01",strtotime("-2 days"));
-    $endDate = $f3->get('REQUEST.end_date') ?: date("Y-m-d 23:59:01");
-    $extension = $f3->get('REQUEST.extension') ?: 'all';
-    
-    if (!$this->validateDate($startDate) || !$this->validateDate($endDate)) {
-        $this->sendError('Invalid date format. Use YYYY-MM-DD.', 400);
-        return;
+
+    private function getCdrDataSearch($f3, $db)
+    {
+        // Get mandatory date range parameters
+        $startDate = $f3->get('REQUEST.start_date');
+        $endDate = $f3->get('REQUEST.end_date');
+
+        // Get optional filter parameters
+        $extension = $f3->get('REQUEST.extension');
+        $calledNumber = $f3->get('REQUEST.called_number');
+
+        // Validate date parameters
+        if (!$startDate || !$endDate || !$this->validateDate($startDate) || !$this->validateDate($endDate)) {
+            $this->sendError('Invalid date format or missing date parameters. Use YYYY-MM-DD.', 400);
+            return;
+        }
+
+        // Base query with mandatory date filtering
+        $sql = "SELECT * FROM asteriskcdrdb.cdr WHERE calldate BETWEEN ? AND ?";
+        $params = [sprintf("%s 00:00:01", $startDate), sprintf("%s 23:59:59", $endDate)];
+
+        // Add extension filter if provided
+        if ($extension && $extension !== "all") {
+            $sql .= " AND (cnum=? OR cnam=? OR src=?)";
+            $params = array_merge($params, [$extension, $extension, $extension]);
+        }
+
+        // Add called number filter if provided
+        if ($calledNumber) {
+            $sql .= " AND (dst=?)";
+            $params[] = $calledNumber;
+        }
+
+        // Add sorting
+        $sql .= " ORDER BY calldate DESC";
+
+        // Execute the query
+        $query = $db->exec($sql, $params);
+
+        // Process results
+        $export = [];
+        foreach ($query as $data) {
+            $dateParts = strtotime($data['calldate']);
+            $recordingFilePath = sprintf("/%s/%s/%s/%s",
+                date("Y", $dateParts),
+                date("m", $dateParts),
+                date("d", $dateParts),
+                $data['recordingfile']
+            );
+            $data['recordingfile'] = $recordingFilePath;
+            $export[] = $data;
+        }
+
+        $this->sendSuccess($export);
     }
-    
-    // Her zaman tüm disposition'ları grupla
-    if ($extension === 'all') {
-        $query = $db->prepare("
-            SELECT 
+
+    private function getCDRMonitor($f3, $db)
+    {
+        $startDate = $f3->get('REQUEST.start_date') ?: date("Y-m-d 00:00:01",strtotime("-2 days"));
+        $endDate = $f3->get('REQUEST.end_date') ?: date("Y-m-d 23:59:01");
+        $extension = $f3->get('REQUEST.extension') ?: 'all';
+
+        if (!$this->validateDate($startDate) || !$this->validateDate($endDate)) {
+            $this->sendError('Invalid date format. Use YYYY-MM-DD.', 400);
+            return;
+        }
+
+        // Her zaman tüm disposition'ları grupla
+        if ($extension === 'all') {
+            $query = $db->prepare("
+            SELECT
                 disposition,
-                COUNT(*) AS total_calls, 
-                SUM(duration) AS total_seconds, 
-                SUM(duration)/60 AS total_minutes 
-            FROM asteriskcdrdb.cdr 
+                COUNT(*) AS total_calls,
+                SUM(duration) AS total_seconds,
+                SUM(duration)/60 AS total_minutes
+            FROM asteriskcdrdb.cdr
             WHERE calldate BETWEEN ? AND ?
             GROUP BY disposition
         ");
-        $query->execute([sprintf("%s 00:00:01",$startDate), sprintf("%s 23:59:59",$endDate)]);
-    } else {
-        // Belirli extension için tüm disposition'ları grupla
-        $query = $db->prepare("
-            SELECT 
+            $query->execute([sprintf("%s 00:00:01",$startDate), sprintf("%s 23:59:59",$endDate)]);
+        } else {
+            // Belirli extension için tüm disposition'ları grupla
+            $query = $db->prepare("
+            SELECT
                 disposition,
-                COUNT(*) AS total_calls, 
-                SUM(duration) AS total_seconds, 
-                SUM(duration)/60 AS total_minutes 
-            FROM asteriskcdrdb.cdr 
-            WHERE (cnum=? OR cnam=? OR src=?) 
+                COUNT(*) AS total_calls,
+                SUM(duration) AS total_seconds,
+                SUM(duration)/60 AS total_minutes
+            FROM asteriskcdrdb.cdr
+            WHERE (cnum=? OR cnam=? OR src=?)
             AND calldate BETWEEN ? AND ?
             GROUP BY disposition
         ");
-        $query->execute([$extension, $extension, $extension, sprintf("%s 00:00:01",$startDate), sprintf("%s 23:59:59",$endDate)]);
-    }
-    
-    $results = $query->fetchAll(PDO::FETCH_ASSOC);
-    
-    if (empty($results)) {
-        $results = [
-            [
-                'disposition' => 'NO DATA',
+            $query->execute([$extension, $extension, $extension, sprintf("%s 00:00:01",$startDate), sprintf("%s 23:59:59",$endDate)]);
+        }
+
+        $results = $query->fetchAll(PDO::FETCH_ASSOC);
+
+        if (empty($results)) {
+            $results = [
+                [
+                    'disposition' => 'NO DATA',
+                    'total_calls' => 0,
+                    'total_seconds' => 0,
+                    'total_minutes' => 0
+                ]
+            ];
+        } else {
+            // Toplam sonuçları da ekle
+            $grandTotal = [
+                'disposition' => 'TOTAL',
                 'total_calls' => 0,
                 'total_seconds' => 0,
                 'total_minutes' => 0
-            ]
-        ];
-    } else {
-        // Toplam sonuçları da ekle
-        $grandTotal = [
-            'disposition' => 'TOTAL',
-            'total_calls' => 0,
-            'total_seconds' => 0,
-            'total_minutes' => 0
-        ];
-        
-        foreach ($results as $result) {
-            $grandTotal['total_calls'] += $result['total_calls'];
-            $grandTotal['total_seconds'] += $result['total_seconds'];
-            $grandTotal['total_minutes'] += $result['total_minutes'];
+            ];
+
+            foreach ($results as $result) {
+                $grandTotal['total_calls'] += $result['total_calls'];
+                $grandTotal['total_seconds'] += $result['total_seconds'];
+                $grandTotal['total_minutes'] += $result['total_minutes'];
+            }
+
+            $results[] = $grandTotal;
         }
-        
-        $results[] = $grandTotal;
+
+        $this->sendSuccess($results);
     }
-    
-    $this->sendSuccess($results);
-}
-    
+
 
     private function getPlayerData($f3)
     {
@@ -218,7 +276,7 @@ private function getCDRMonitor($f3, $db)
             $this->sendError('File parameter is required for player action.', 400);
             return;
         }
-      
+
 
         if(file_exists("/var/spool/asterisk/monitor$file")){
 
