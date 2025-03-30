@@ -146,47 +146,68 @@ class V2ApiService extends Rest
         $endDate = $f3->get('REQUEST.end_date');
         $extension = $f3->get('REQUEST.extension');
         $calledNumber = $f3->get('REQUEST.called_number');
-        // Get pagination parameters
+// Get pagination parameters
         $page = (int)$f3->get('REQUEST.page') ?: 1;
         $perPage = (int)$f3->get('REQUEST.per_page') ?: 20;
+
         if (!$startDate || !$endDate || !$this->validateDate($startDate) || !$this->validateDate($endDate)) {
             $this->sendError('Invalid date format or missing date parameters. Use YYYY-MM-DD.', 400);
             return;
         }
+
+// Set the base condition to filter only records where both cnum and cnam are not empty
         $conditions = "calldate BETWEEN ? AND ? AND cnum != '' AND cnam != ''";
         $params = [sprintf("%s 00:00:01", $startDate), sprintf("%s 23:59:59", $endDate)];
+
         if ($extension && $extension !== "all") {
             $conditions .= " AND (cnum=? OR cnam=? OR src=?)";
             $params = array_merge($params, [$extension, $extension, $extension]);
         }
+
         if ($calledNumber) {
             $conditions .= " AND (dst=?)";
             $params[] = $calledNumber;
         }
+
+// Get total record count for pagination
         $countSql = "SELECT COUNT(*) as total FROM asteriskcdrdb.cdr WHERE " . $conditions;
         $totalRecords = $db->exec($countSql, $params)[0]['total'];
         $totalPages = ceil($totalRecords / $perPage);
+
+// Adjust page number if it's out of range
         if ($page < 1) $page = 1;
         if ($page > $totalPages && $totalPages > 0) $page = $totalPages;
+
         $offset = ($page - 1) * $perPage;
+
+// Main query with pagination
         $sql = "SELECT * FROM asteriskcdrdb.cdr WHERE " . $conditions . " ORDER BY calldate DESC LIMIT ? OFFSET ?";
         $params[] = $perPage;
         $params[] = $offset;
         $query = $db->exec($sql, $params);
+
+// Process results
         $data = [];
         foreach ($query as $item) {
             $dateParts = strtotime($item['calldate']);
-            $recordingFilePath = sprintf("/%s/%s/%s/%s",
-                date("Y", $dateParts),
-                date("m", $dateParts),
-                date("d", $dateParts),
-                $item['recordingfile']
-            );
-            $item['recordingfile'] = $recordingFilePath;
+            // Make sure recordingfile exists before formatting the path
+            if (!empty($item['recordingfile'])) {
+                $recordingFilePath = sprintf("/%s/%s/%s/%s",
+                    date("Y", $dateParts),
+                    date("m", $dateParts),
+                    date("d", $dateParts),
+                    $item['recordingfile']
+                );
+                $item['recordingfile'] = $recordingFilePath;
+            }
             $data[] = $item;
         }
+
+// Build pagination URLs
         $baseUrl = $f3->get('PATH');
         $queryParams = $f3->get('GET');
+
+// Previous page URL
         if ($page > 1) {
             $prevQueryParams = $queryParams;
             $prevQueryParams['page'] = $page - 1;
@@ -194,6 +215,8 @@ class V2ApiService extends Rest
         } else {
             $prevPageUrl = null;
         }
+
+// Next page URL
         if ($page < $totalPages) {
             $nextQueryParams = $queryParams;
             $nextQueryParams['page'] = $page + 1;
@@ -201,14 +224,21 @@ class V2ApiService extends Rest
         } else {
             $nextPageUrl = null;
         }
+
+// First and last page URLs
         $firstQueryParams = $queryParams;
         $firstQueryParams['page'] = 1;
         $firstPageUrl = $baseUrl . '?' . http_build_query($firstQueryParams);
+
         $lastQueryParams = $queryParams;
-        $lastQueryParams['page'] = $totalPages;
+        $lastQueryParams['page'] = $totalPages > 0 ? $totalPages : 1;
         $lastPageUrl = $baseUrl . '?' . http_build_query($lastQueryParams);
+
+// Calculate from/to for pagination info
         $from = $totalRecords ? ($offset + 1) : 0;
         $to = min($offset + $perPage, $totalRecords);
+
+// Prepare response
         $response = [
             'current_page' => $page,
             'data' => $data,
@@ -223,6 +253,7 @@ class V2ApiService extends Rest
             'to' => $to,
             'total' => $totalRecords
         ];
+
         $this->sendSuccess($response);
     }
 
