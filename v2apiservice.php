@@ -146,7 +146,9 @@ class V2ApiService extends Rest
         $endDate = $f3->get('REQUEST.end_date');
         $extension = $f3->get('REQUEST.extension');
         $calledNumber = $f3->get('REQUEST.called_number');
-// Get pagination parameters
+        $disposition = $f3->get('REQUEST.disposition'); // Added disposition parameter
+
+        // Get pagination parameters
         $page = (int)$f3->get('REQUEST.page') ?: 1;
         $perPage = (int)$f3->get('REQUEST.per_page') ?: 20;
 
@@ -155,7 +157,7 @@ class V2ApiService extends Rest
             return;
         }
 
-// Set the base condition to filter only records where both cnum and cnam are not empty
+        // Set the base condition to filter only records where both cnum and cnam are not empty
         $conditions = "calldate BETWEEN ? AND ? AND cnum != '' AND cnam != ''";
         $params = [sprintf("%s 00:00:01", $startDate), sprintf("%s 23:59:59", $endDate)];
 
@@ -169,24 +171,30 @@ class V2ApiService extends Rest
             $params[] = $calledNumber;
         }
 
-// Get total record count for pagination
+        // Add filter for disposition if it's provided
+        if ($disposition) {
+            $conditions .= " AND (disposition=?)";
+            $params[] = $disposition;
+        }
+
+        // Get total record count for pagination
         $countSql = "SELECT COUNT(*) as total FROM asteriskcdrdb.cdr WHERE " . $conditions;
         $totalRecords = $db->exec($countSql, $params)[0]['total'];
         $totalPages = ceil($totalRecords / $perPage);
 
-// Adjust page number if it's out of range
+        // Adjust page number if it's out of range
         if ($page < 1) $page = 1;
         if ($page > $totalPages && $totalPages > 0) $page = $totalPages;
 
         $offset = ($page - 1) * $perPage;
 
-// Main query with pagination
+        // Main query with pagination
         $sql = "SELECT * FROM asteriskcdrdb.cdr WHERE " . $conditions . " ORDER BY calldate DESC LIMIT ? OFFSET ?";
         $params[] = $perPage;
         $params[] = $offset;
         $query = $db->exec($sql, $params);
 
-// Process results
+        // Process results
         $data = [];
         foreach ($query as $item) {
             $dateParts = strtotime($item['calldate']);
@@ -203,11 +211,11 @@ class V2ApiService extends Rest
             $data[] = $item;
         }
 
-// Build pagination URLs
+        // Build pagination URLs
         $baseUrl = $f3->get('PATH');
         $queryParams = $f3->get('GET');
 
-// Previous page URL
+        // Previous page URL
         if ($page > 1) {
             $prevQueryParams = $queryParams;
             $prevQueryParams['page'] = $page - 1;
@@ -216,7 +224,7 @@ class V2ApiService extends Rest
             $prevPageUrl = null;
         }
 
-// Next page URL
+        // Next page URL
         if ($page < $totalPages) {
             $nextQueryParams = $queryParams;
             $nextQueryParams['page'] = $page + 1;
@@ -225,7 +233,7 @@ class V2ApiService extends Rest
             $nextPageUrl = null;
         }
 
-// First and last page URLs
+        // First and last page URLs
         $firstQueryParams = $queryParams;
         $firstQueryParams['page'] = 1;
         $firstPageUrl = $baseUrl . '?' . http_build_query($firstQueryParams);
@@ -234,11 +242,11 @@ class V2ApiService extends Rest
         $lastQueryParams['page'] = $totalPages > 0 ? $totalPages : 1;
         $lastPageUrl = $baseUrl . '?' . http_build_query($lastQueryParams);
 
-// Calculate from/to for pagination info
+        // Calculate from/to for pagination info
         $from = $totalRecords ? ($offset + 1) : 0;
         $to = min($offset + $perPage, $totalRecords);
 
-// Prepare response
+        // Prepare response
         $response = [
             'current_page' => $page,
             'data' => $data,
