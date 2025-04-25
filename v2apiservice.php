@@ -146,7 +146,7 @@ class V2ApiService extends Rest
         $endDate = $f3->get('REQUEST.end_date');
         $extension = $f3->get('REQUEST.extension');
         $calledNumber = $f3->get('REQUEST.called_number');
-        $disposition = $f3->get('REQUEST.disposition');
+        $disposition = $f3->get('REQUEST.disposition'); // Added disposition parameter
 
         // Get pagination parameters
         $page = (int)$f3->get('REQUEST.page') ?: 1;
@@ -394,4 +394,3 @@ class V2ApiService extends Rest
         echo json_encode(['status' => 'error', 'message' => $message]);
     }
 }
-
