@@ -19,13 +19,50 @@ class V2ApiService extends Rest
             $this->getCDRMonitor($f3, $db);
         } elseif ($action === 'cdr-search') {
             $this->getCdrDataSearch($f3, $db);
+        } elseif ($action === 'show-p') {
+            $this->getSipPeers($f3, $db);
         } elseif ($action === 'dst-monitor') {
             $this->getCdrDataByDst($f3, $db);
         } elseif ($action === 'channels') {
             $this->getChannels();
+        } elseif ($action === 'peers') {
+            $this->getPeers();
         } else {
             $this->sendError('Invalid action.', 400);
         }
+    }
+
+
+    private function getCdrDataByDst($f3, $db)
+    {
+        $dstNumber = $f3->get('REQUEST.dst') ?: 'all';
+        $extNumber = $f3->get('REQUEST.ext') ?: 'all';
+
+        if ($dstNumber === "all") {
+            $query = $db->exec(
+                "SELECT calldate, clid, src, dst, dcontext, channel, dstchannel, disposition, billsec, duration, uniqueid, recordingfile, cnum, cnam
+                FROM asteriskcdrdb.cdr
+                ORDER BY calldate DESC"
+            );
+        } else {
+            $query = $db->exec(
+                "SELECT calldate, clid, src, dst, dcontext, channel, dstchannel, disposition, billsec, duration, uniqueid, recordingfile, cnum, cnam
+                FROM asteriskcdrdb.cdr
+                WHERE dst = ? and (cnum=? OR cnam=? OR src=?)
+                ORDER BY calldate DESC",
+                [$dstNumber, $extNumber, $extNumber, $extNumber]
+            );
+        }
+
+        $export = [];
+        foreach ($query as $data) {
+            $dateParts = strtotime($data['calldate']);
+            $recordingFilePath = sprintf("/%s/%s/%s/%s", date("Y", $dateParts), date("m", $dateParts), date("d", $dateParts), $data['recordingfile']);
+            $data['recordingfile'] = $recordingFilePath;
+            $export[] = $data;
+        }
+
+        $this->sendSuccess($export);
     }
 
 
@@ -136,38 +173,6 @@ class V2ApiService extends Rest
 
         $this->sendSuccess($export);
     }
-    
-    private function getCdrDataByDst($f3, $db)
-    {
-        $dstNumber = $f3->get('REQUEST.dst') ?: 'all';
-        $extNumber = $f3->get('REQUEST.ext') ?: 'all';
-
-        if ($dstNumber === "all") {
-            $query = $db->exec(
-                "SELECT calldate, clid, src, dst, dcontext, channel, dstchannel, disposition, billsec, duration, uniqueid, recordingfile, cnum, cnam
-                FROM asteriskcdrdb.cdr
-                ORDER BY calldate DESC"
-            );
-        } else {
-            $query = $db->exec(
-                "SELECT calldate, clid, src, dst, dcontext, channel, dstchannel, disposition, billsec, duration, uniqueid, recordingfile, cnum, cnam
-                FROM asteriskcdrdb.cdr
-                WHERE dst = ? and (cnum=? OR cnam=? OR src=?)
-                ORDER BY calldate DESC",
-                [$dstNumber, $extNumber, $extNumber, $extNumber]
-            );
-        }
-
-        $export = [];
-        foreach ($query as $data) {
-            $dateParts = strtotime($data['calldate']);
-            $recordingFilePath = sprintf("/%s/%s/%s/%s", date("Y", $dateParts), date("m", $dateParts), date("d", $dateParts), $data['recordingfile']);
-            $data['recordingfile'] = $recordingFilePath;
-            $export[] = $data;
-        }
-
-        $this->sendSuccess($export);
-    }
 
 
     private function getChannels()
@@ -209,6 +214,15 @@ class V2ApiService extends Rest
         }
 
         $this->sendSuccess($export);
+
+    }
+
+    private function getPeers()
+    {
+        $output = [];
+        exec("asterisk -rx 'sip show peers'", $output);
+
+        $this->sendSuccess($output);
 
     }
 
@@ -502,3 +516,4 @@ class V2ApiService extends Rest
         echo json_encode(['status' => 'error', 'message' => $message]);
     }
 }
+
