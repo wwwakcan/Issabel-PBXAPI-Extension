@@ -19,12 +19,12 @@ class V2ApiService extends Rest
             $this->getCDRMonitor($f3, $db);
         } elseif ($action === 'cdr-search') {
             $this->getCdrDataSearch($f3, $db);
-        } elseif ($action === 'show-peers') {
-            $this->getSipPeers();
         } elseif ($action === 'dst-monitor') {
             $this->getCdrDataByDst($f3, $db);
         } elseif ($action === 'channels') {
             $this->getChannels();
+        } elseif ($action === 'peers') {
+            $this->getSipPeers();
         } else {
             $this->sendError('Invalid action.', 400);
         }
@@ -63,6 +63,48 @@ class V2ApiService extends Rest
         $this->sendSuccess($export);
     }
 
+
+    private function getChannels()
+    {
+        $output = [];
+        exec("asterisk -rx 'core show channels'", $output);
+
+        if (count($output) > 4) {
+            $processedOutput = array_slice($output, 1, count($output) - 4);
+        } else {
+            $processedOutput = [];
+        }
+
+        $export = [];
+
+        foreach ($processedOutput as $line) {
+            if (preg_match('/(SIP\/(\d+)-\w+)\s+s@macro-dialout-trun\s+\w+\s+Dial\(SIP\/MMT-Out\/(\d+)/', $line, $matches)) {
+                $export[] = [
+                    'channel' => $matches[1],
+                    'extension' => $matches[2],
+                    'destination' => $matches[3],
+                    'status' => 'up'
+                ];
+            } elseif (preg_match('/(SIP\/(\d+)-\w+)\s+s-BUSY@macro-dialout/', $line, $matches)) {
+                $export[] = [
+                    'channel' => $matches[1],
+                    'extension' => $matches[2],
+                    'destination' => '-',
+                    'status' => 'down'
+                ];
+            } elseif (preg_match('/SIP\/MMT-Out-\w+\s+(\d+)@from-tr\w*\s+Ringing/', $line, $matches)) {
+                $export[] = [
+                    'channel' => '-',
+                    'extension' => '-',
+                    'destination' => $matches[1],
+                    'status' => 'ring'
+                ];
+            }
+        }
+
+        $this->sendSuccess($export);
+
+    }
 
     private function getSipPeers()
     {
@@ -171,50 +213,7 @@ class V2ApiService extends Rest
 
         $this->sendSuccess($export);
     }
-
-
-    private function getChannels()
-    {
-        $output = [];
-        exec("asterisk -rx 'core show channels'", $output);
-
-        if (count($output) > 4) {
-            $processedOutput = array_slice($output, 1, count($output) - 4);
-        } else {
-            $processedOutput = [];
-        }
-
-        $export = [];
-
-        foreach ($processedOutput as $line) {
-            if (preg_match('/(SIP\/(\d+)-\w+)\s+s@macro-dialout-trun\s+\w+\s+Dial\(SIP\/MMT-Out\/(\d+)/', $line, $matches)) {
-                $export[] = [
-                    'channel' => $matches[1],
-                    'extension' => $matches[2],
-                    'destination' => $matches[3],
-                    'status' => 'up'
-                ];
-            } elseif (preg_match('/(SIP\/(\d+)-\w+)\s+s-BUSY@macro-dialout/', $line, $matches)) {
-                $export[] = [
-                    'channel' => $matches[1],
-                    'extension' => $matches[2],
-                    'destination' => '-',
-                    'status' => 'down'
-                ];
-            } elseif (preg_match('/SIP\/MMT-Out-\w+\s+(\d+)@from-tr\w*\s+Ringing/', $line, $matches)) {
-                $export[] = [
-                    'channel' => '-',
-                    'extension' => '-',
-                    'destination' => $matches[1],
-                    'status' => 'ring'
-                ];
-            }
-        }
-
-        $this->sendSuccess($export);
-
-    }
-
+    
 
     private function getCdrData($f3, $db)
     {
@@ -257,7 +256,7 @@ class V2ApiService extends Rest
         $endDate = $f3->get('REQUEST.end_date');
         $extension = $f3->get('REQUEST.extension');
         $calledNumber = $f3->get('REQUEST.called_number');
-        $disposition = $f3->get('REQUEST.disposition'); // Added disposition parameter
+        $disposition = $f3->get('REQUEST.disposition');
 
         // Get pagination parameters
         $page = (int)$f3->get('REQUEST.page') ?: 1;
