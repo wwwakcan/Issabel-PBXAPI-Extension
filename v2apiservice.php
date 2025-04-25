@@ -19,6 +19,8 @@ class V2ApiService extends Rest
             $this->getCDRMonitor($f3, $db);
         } elseif ($action === 'cdr-search') {
             $this->getCdrDataSearch($f3, $db);
+        } elseif ($action === 'show-peers') {
+            $this->getSipPeers();
         } elseif ($action === 'dst-monitor') {
             $this->getCdrDataByDst($f3, $db);
         } elseif ($action === 'channels') {
@@ -56,6 +58,115 @@ class V2ApiService extends Rest
             $recordingFilePath = sprintf("/%s/%s/%s/%s", date("Y", $dateParts), date("m", $dateParts), date("d", $dateParts), $data['recordingfile']);
             $data['recordingfile'] = $recordingFilePath;
             $export[] = $data;
+        }
+
+        $this->sendSuccess($export);
+    }
+
+
+    private function getSipPeers()
+    {
+        $output = [];
+        exec("asterisk -rx 'sip show peers'", $output);
+
+        // Header ve footer satırlarını atlayalım
+        if (count($output) > 2) {
+            // İlk satır (başlık) ve son satırı (özet) çıkaralım
+            $processedOutput = array_slice($output, 1, count($output) - 2);
+        } else {
+            $processedOutput = [];
+        }
+
+        $export = [];
+        foreach ($processedOutput as $line) {
+            // Boş satırları atla
+            if (empty(trim($line))) {
+                continue;
+            }
+
+            // Normal çoğu satır için regex
+            if (preg_match('/^(\S+)\s+(\S+|\(\S+\))\s+(\S)?\s+(Yes|No)\s+(Yes|No)\s+(\S)\s+(\d+)\s+(OK.*|UNKNOWN)\s*(.*)$/', $line, $matches)) {
+                $export[] = [
+                    'name_username' => $matches[1],
+                    'host' => $matches[2],
+                    'dyn' => $matches[3] ?? '',
+                    'forceport' => $matches[4],
+                    'comedia' => $matches[5],
+                    'acl' => $matches[6],
+                    'port' => $matches[7],
+                    'status' => $matches[8],
+                    'description' => trim($matches[9] ?? '')
+                ];
+            }
+            // "IN" ve "MMT-Out" gibi özel format satırları için
+            elseif (preg_match('/^(\S+)\s+(\S+)\s+(No)\s+(No)\s+(\d+)\s+(OK.*|Unmonitored)\s*(.*)$/', $line, $matches)) {
+                $export[] = [
+                    'name_username' => $matches[1],
+                    'host' => $matches[2],
+                    'dyn' => '',
+                    'forceport' => $matches[3],
+                    'comedia' => $matches[4],
+                    'port' => $matches[5],
+                    'status' => $matches[6],
+                    'description' => trim($matches[7] ?? '')
+                ];
+            }
+            // (Unspecified) durumları için
+            elseif (preg_match('/^(\S+)\s+\((\S+)\)\s+(\S)?\s+(Yes|No)\s+(Yes|No)\s+(\S)\s+(\d+)\s+(OK.*|UNKNOWN)\s*(.*)$/', $line, $matches)) {
+                $export[] = [
+                    'name_username' => $matches[1],
+                    'host' => '('.$matches[2].')',
+                    'dyn' => $matches[3] ?? '',
+                    'forceport' => $matches[4],
+                    'comedia' => $matches[5],
+                    'acl' => $matches[6],
+                    'port' => $matches[7],
+                    'status' => $matches[8],
+                    'description' => trim($matches[9] ?? '')
+                ];
+            }
+            // Diğer herhangi bir format için yedek çözüm
+            else {
+                // Satırı çoklu boşluklar kullanarak bölelim
+                $parts = preg_split('/\s{2,}/', trim($line));
+
+                if (count($parts) >= 7) {
+                    $nameUsername = $parts[0];
+                    $host = $parts[1];
+
+                    // D bayrağına göre alanların başlangıcını belirle
+                    $isDynamic = false;
+                    if (isset($parts[2]) && $parts[2] == 'D') {
+                        $isDynamic = true;
+                    }
+
+                    if ($isDynamic) {
+                        $export[] = [
+                            'name_username' => $nameUsername,
+                            'host' => $host,
+                            'dyn' => 'D',
+                            'forceport' => $parts[3] ?? '',
+                            'comedia' => $parts[4] ?? '',
+                            'acl' => $parts[5] ?? '',
+                            'port' => $parts[6] ?? '',
+                            'status' => $parts[7] ?? '',
+                            'description' => isset($parts[8]) ? trim(implode(' ', array_slice($parts, 8))) : ''
+                        ];
+                    } else {
+                        $export[] = [
+                            'name_username' => $nameUsername,
+                            'host' => $host,
+                            'dyn' => '',
+                            'forceport' => $parts[2] ?? '',
+                            'comedia' => $parts[3] ?? '',
+                            'acl' => $parts[4] ?? '',
+                            'port' => $parts[5] ?? '',
+                            'status' => $parts[6] ?? '',
+                            'description' => isset($parts[7]) ? trim(implode(' ', array_slice($parts, 7))) : ''
+                        ];
+                    }
+                }
+            }
         }
 
         $this->sendSuccess($export);
